@@ -1,0 +1,3 @@
+{"timestamp":"2026-08-10T02:41:09.999Z","level":"INFO","service":"my-app","message":"User succes login"}
+{"timestamp":"2026-08-10T02:41:10.001Z","level":"WARN","service":"my-app","message":"User login with wrong password"}
+{"timestamp":"2026-08-10T02:41:10.002Z","level":"ERROR","service":"my-app","message":"User login failed due to server error"}
