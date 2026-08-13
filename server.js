@@ -37,8 +37,30 @@ app.post("/logs", async (req, res) => {
 });
 
 app.get("/logs", async (req, res) => {
+  const { level, service, event } = req.query;
+
+  let query = "SELECT * FROM logs WHERE 1=1";
+  const params = [];
+
+  if (level) {
+    query += " AND level = ?";
+    params.push(level);
+  }
+
+  if (service) {
+    query += " AND service = ?";
+    params.push(service);
+  }
+
+  if (event) {
+    query += " AND event = ?";
+    params.push(event);
+  }
+
+  query += " ORDER BY id DESC";
+
   try {
-    const [rows] = await pool.query("SELECT * FROM logs ORDER BY id DESC");
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error(err);
