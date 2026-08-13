@@ -1,0 +1,4 @@
+logs/*.log
+central/*.json
+collector-state.json
+node_modules/

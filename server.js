@@ -1,52 +1,68 @@
-const express = require('express');
+const express = require("express");
+const pool = require("./db");
 
 const app = express();
 app.use(express.json());
 
 const PORT = 3000;
 
-// Nyimpen log sementara di memori
-let logs = [];
-let nextId = 1;
-
 // Endpoint untuk nambah log
-app.post('/logs', (req, res) => {
-  const { level, service, event, message } = req.body;
+app.post("/logs", async (req, res) => {
+  const { level, service, event, message, request_id, user_id, ip, metadata } =
+    req.body;
 
-  const newLog = {
-    id: nextId,
-    timestamp: new Date().toISOString(),
-    level,
-    service,
-    event,
-    message
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO logs (timestamp, level, service, event, message, request_id, user_id, ip, metadata)
+      VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        level,
+        service,
+        event,
+        message,
+        request_id,
+        user_id,
+        ip,
+        JSON.stringify(metadata || {}),
+      ],
+    );
+
+    res
+      .status(201)
+      .json({ id: result.insertId, message: "Log Berhasil ditambahkan" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gagal menyimpan log" });
   }
+});
 
-  logs.push(newLog);
-  nextId++;
+app.get("/logs", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM logs ORDER BY id DESC");
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gagal mengambil data log" });
+  }
+});
 
-  res.status(201).json(newLog);         
-})
-
-
-app.get('/logs', (req, res) => {
-  res.json(logs);
-})
-
-
-app.get("/logs/:id", (req, res) => {
+app.get("/logs/:id", async (req, res) => {
   const id = parseInt(req.params.id);
-  const foundLog = logs.find(log => log.id === id);
 
-  if(!foundLog) {
-    return res.status(404).json({ error: "Log not found" });
+  try {
+    const [rows] = await pool.query("SELECT * FROM logs WHERE id = ?", [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Log tidak ditemukan" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gagal mengambil data log" });
   }
-
-  res.json(foundLog);
-})
-
+});
 
 app.listen(PORT, () => {
   console.log(`Log API jalan di http://localhost:${PORT}`);
-})
-
+});
