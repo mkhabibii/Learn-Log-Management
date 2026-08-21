@@ -90,3 +90,64 @@ app.get("/logs/:id", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Log API jalan di http://localhost:${PORT}`);
 });
+
+// ----- Alerts ------
+async function checkAlerts() {
+  const [errorRows] = await pool.query(
+    `SELECT COUNT(*) AS total_error
+    FROM logs WHERE level = 'ERROR' AND timestamp >= NOW() - INTERVAL 5 MINUTE  `,
+  );
+
+  const totalErrors = errorRows[0].total_error;
+  const threshold = 50;
+
+  if (totalErrors <= threshold) {
+    return { isAlert: false, totalErrors, threshold };
+  }
+
+  const [recentErrors] = await pool.query(
+    `SELECT * FROM alerts WHERE triggered_at >=NOW() - INTERVAL 5 MINUTE ORDER BY triggered_at DESC LIMIT 1`,
+  );
+
+  if (recentErrors.length > 0) {
+    return {
+      isAlert: true,
+      totalErrors,
+      threshold,
+      note: "Alert masih berlangsung, tidak dicatat ulang",
+    };
+  }
+
+  const message = `PERINGATAN : ${totalErrors} error dalam 5 menit terakhir ( Ambang batas : ${threshold} )`;
+
+  await pool.query(
+    `INSERT INTO alerts (triggered_at, error_count, threshold_value, window_minutes, message) VALUES (NOW(), ?, ?, ?, ?)`,
+    [totalErrors, threshold, 5, message],
+  );
+
+  return { isAlert: true, totalErrors, threshold, note: "Alert baru dicatat" };
+}
+
+app.get("/alerts/check", async (req, res) => {
+  try {
+    const result = await checkAlerts();
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gagal mengecek alert" });
+  }
+});
+
+app.get("/alerts", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM alerts ORDER BY triggered_at DESC",
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gagal mengambil data alert" });
+  }
+});
+
+setInterval(checkAlerts, 60 * 1000);

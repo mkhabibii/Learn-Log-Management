@@ -11,7 +11,7 @@ async function fetchLogs() {
   if (filterLevel.value) {
     params.append("level", filterLevel.value)
   }
-  if (filterService.value) {
+  if (filterService.value) { 
     params.append("service", filterService.value)
   }
 
@@ -24,8 +24,7 @@ onMounted(() => {
   fetchLogs();
 });
 
-const totalLogs = computed(() => logs.value.length);
-
+const totalLogs = computed(() => logs.value.length)
 const totalErrors = computed(() => {
   return logs.value.filter((log) => log.level === "ERROR").length;
 });
