@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
+const cron = require("node-cron")
+const runRetention = require("./retention-worker")
 
 const app = express();
 app.use(cors());
@@ -151,3 +153,12 @@ app.get("/alerts", async (req, res) => {
 });
 
 setInterval(checkAlerts, 60 * 1000);
+
+cron.schedule("0 2 * * *", async () => {
+  console.log("Menjalankan retention job terjadwal ...")
+  try {
+    await runRetention()
+  } catch (err) {
+    console.error("Retention job gagal ", err)
+  }
+})
