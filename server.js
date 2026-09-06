@@ -3,6 +3,7 @@ const cors = require("cors");
 const pool = require("./db");
 const cron = require("node-cron")
 const runRetention = require("./retention-worker")
+const apiKeyAuth = require("./middleware/apiKeyAuth")
 
 const app = express();
 app.use(cors());
@@ -10,8 +11,8 @@ app.use(express.json());
 
 const PORT = 3000;
 
-// Endpoint untuk nambah log
-app.post("/logs", async (req, res) => {
+// Endpoint untuk nambah log (Single)
+app.post("/logs", apiKeyAuth, async (req, res) => {
   const { level, service, event, message, request_id, user_id, ip, metadata } =
     req.body;
 
@@ -37,6 +38,42 @@ app.post("/logs", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Gagal menyimpan log" });
+  }
+});
+
+// Endpoint untuk nambah log secara Batch (High Throughput)
+app.post("/api/v1/logs/batch", async (req, res) => {
+  const logs = req.body.logs || req.body;
+
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return res.status(400).json({ error: "Payload logs harus berupa array non-kosong" });
+  }
+
+  try {
+    const values = logs.map((log) => [
+      log.timestamp ? new Date(log.timestamp) : new Date(),
+      log.level || "INFO",
+      log.service || "default-service",
+      log.event || null,
+      log.message || "",
+      log.request_id || log.id || null,
+      log.user_id || null,
+      log.ip || null,
+      JSON.stringify(log.metadata || {}),
+    ]);
+
+    const [result] = await pool.query(
+      `INSERT INTO logs (timestamp, level, service, event, message, request_id, user_id, ip, metadata) VALUES ?`,
+      [values],
+    );
+
+    res.status(201).json({
+      message: `${result.affectedRows} log berhasil disimpan secara batch`,
+      count: result.affectedRows,
+    });
+  } catch (err) {
+    console.error("Gagal menyimpan batch log:", err);
+    res.status(500).json({ error: "Gagal menyimpan batch log" });
   }
 });
 
@@ -89,8 +126,12 @@ app.get("/logs/:id", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Log API jalan di http://localhost:${PORT}`);
+pool.init().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Log API jalan di http://localhost:${PORT} [Driver: ${pool.driver.toUpperCase()}]`);
+  });
+}).catch(err => {
+  console.error("Gagal menginisialisasi Database:", err);
 });
 
 // ----- Alerts ------

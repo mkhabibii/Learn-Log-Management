@@ -3,3 +3,5 @@ central/*.json
 collector-state.json
 node_modules/
 archive/*.json
+*.sqlite*
+logs.sqlite*
